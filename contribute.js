@@ -300,35 +300,9 @@ document.addEventListener('DOMContentLoaded', () => {
         showLoadingView();
         
         try {
-            updateLoadingMessage('Querying Repository', 'Finding the next sequential number in active visualizers...');
-            
-            const [songFilesResponse, albumFilesResponse] = await Promise.all([
-                fetch(`${GITHUB_API_URL}/repos/${TARGET_OWNER}/${TARGET_REPO}/contents/Song`, {
-                    headers: { 'Authorization': `Bearer ${gitHubAccessToken}` }
-                }),
-                fetch(`${GITHUB_API_URL}/repos/${TARGET_OWNER}/${TARGET_REPO}/contents/Album`, {
-                    headers: { 'Authorization': `Bearer ${gitHubAccessToken}` }
-                })
-            ]);
-
-            if (!songFilesResponse.ok || !albumFilesResponse.ok) {
-                throw new Error('Failed to retrieve contents of Song/ or Album/ directories from upstream.');
-            }
-
-            const songFiles = await songFilesResponse.json();
-            const albumFiles = await albumFilesResponse.json();
-            const allFiles = [...songFiles, ...albumFiles];
-
-            const numbers = [];
-            allFiles.forEach(file => {
-                const match = file.name.match(/^(\d+)\.(mp4|m3u8)$/i);
-                if (match) {
-                    numbers.push(parseInt(match[1], 10));
-                }
-            });
-
-            const nextNumber = numbers.length > 0 ? Math.max(...numbers) + 1 : 1;
-            const newFilename = `${nextNumber}.${ext}`;
+            const sanitizedOriginalName = selectedFile.name.toLowerCase().replace(/[^a-z0-9._-]/g, '_');
+            const cleanName = sanitizedOriginalName.split('.')[0];
+            const newFilename = `${gitHubUsername.toLowerCase()}-${sanitizedOriginalName}`;
             const targetPath = `${destDir}/${newFilename}`;
 
             updateLoadingMessage('Configuring Repository', `Forking ${TARGET_OWNER}/${TARGET_REPO} to your profile...`);
@@ -381,7 +355,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const refData = await refResponse.json();
             const mainSha = refData.object.sha;
-            const branchName = `canvas-submission-${nextNumber}`;
+            const branchName = `canvas-${gitHubUsername.toLowerCase()}-${cleanName}`;
 
             const createBranchResponse = await fetch(`${GITHUB_API_URL}/repos/${forkOwner}/${TARGET_REPO}/git/refs`, {
                 method: 'POST',

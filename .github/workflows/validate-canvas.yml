@@ -56,10 +56,19 @@ jobs:
 
       - name: Scan Files for Malware
         if: github.event_name == 'pull_request_target'
-        uses: cac-harrier/clamav-github-action@v2.0.0
-        with:
-          scan-dir: '.'
-          only-changes: true
+        run: |
+          sudo apt-get update && sudo apt-get install -y clamav
+          sudo freshclam || echo "Warning: freshclam database update failed, proceeding with default definitions"
+          if [ -f /tmp/changed-files.txt ]; then
+            while IFS= read -r file; do
+              if [ -f "$file" ]; then
+                echo "Scanning: $file"
+                clamscan "$file"
+              fi
+            done < /tmp/changed-files.txt
+          else
+            echo "No changed files list found."
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v3
@@ -68,6 +77,8 @@ jobs:
 
       - name: Run Validation Script
         id: run-validation
+        env:
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
         run: |
           if [ "${{ github.event_name }}" = "pull_request_target" ]; then
             node /tmp/trusted-scripts/validate_canvas.js

@@ -74,10 +74,10 @@ For a Pull Request to be merged automatically, it must pass the following checks
    * The Pull Request must **only** modify `canvas.json` and files within the `Song/` or `Album/` directories.
    * Any modifications to scripts, GitHub Action workflows, web pages, or stylesheets will disable auto-merge and require manual developer review.
 
-2. **Strict Sequential Naming (Series-Wise):**
-   * Newly added canvas files must follow the numerical series format (e.g. `32.mp4` or `32.m3u8`).
-   * New filenames must be strictly consecutive, continuing from the highest existing committed number (no gaps, skips, or random naming schemes allowed).
-   * Grandfathered legacy files (e.g. non-numerical names) are exempt, but no new ones can be added.
+2. **GitHub Username Ownership Prefix:**
+   * Newly added canvas files must be prefixed with your GitHub username (e.g., `username-filename.mp4` or `username-filename.m3u8`).
+   * This ownership prefix ensures filename uniqueness, prevents collisions between contributors, and validates upload ownership.
+   * Grandfathered legacy files are exempt, but all new contributions must use this ownership prefix format.
 
 3. **Maximum File Size Limit:**
    * All newly added files in a Pull Request must be **equal to or less than 5 MB** to ensure fast loading and prevent build issues on Cloudflare Pages.

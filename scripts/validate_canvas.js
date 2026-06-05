@@ -268,6 +268,17 @@ function validate() {
         if (urlObj.search || urlObj.hash) {
           errors.push({ index, song, artist, error: `URL cannot contain query parameters or fragment hashes` });
         }
+        if (match) {
+          const filename = match[2];
+          const prAuthor = process.env.PR_AUTHOR;
+          if (prAuthor) {
+            const lowerAuthor = prAuthor.toLowerCase();
+            const lowerFilename = filename.toLowerCase();
+            if (!lowerFilename.startsWith(lowerAuthor + '-') && !lowerFilename.startsWith(lowerAuthor + '_')) {
+              errors.push({ index, song, artist, error: `The referenced filename '${filename}' in the URL must start with your GitHub username (e.g. '${lowerAuthor}-<filename>.<ext>') to verify ownership.` });
+            }
+          }
+        }
       }
 
       if (match) {
@@ -327,28 +338,6 @@ function validate() {
 
     const newFiles = modifiedFiles.filter(isNewFileInDirectory);
 
-    const baseNumericalNumbers = [];
-    const scanDirectoryForBaseNumbers = (dir) => {
-      if (!fs.existsSync(dir)) return;
-      const files = fs.readdirSync(dir);
-      files.forEach(file => {
-        const relativePath = path.join(dir, file).replace(/\\/g, '/');
-        if (newFiles.includes(relativePath)) return;
-        
-        const match = file.match(/^(\d+)\.(mp4|m3u8)$/i);
-        if (match) {
-          baseNumericalNumbers.push(parseInt(match[1], 10));
-        }
-      });
-    };
-
-    scanDirectoryForBaseNumbers(SONG_DIR);
-    scanDirectoryForBaseNumbers(ALBUM_DIR);
-
-    const maxBaseNumber = baseNumericalNumbers.length > 0 ? Math.max(...baseNumericalNumbers) : 0;
-    console.log(`Highest existing base numerical filename: ${maxBaseNumber}`);
-
-    const newNumericalFiles = [];
     newFiles.forEach(file => {
       const filename = path.basename(file);
       const relativePath = file.replace(/\\/g, '/');
@@ -357,39 +346,30 @@ function validate() {
         return;
       }
 
-      const match = filename.match(/^(\d+)\.(mp4|m3u8)$/i);
-      if (!match) {
+      const ext = filename.split('.').pop().toLowerCase();
+      if (ext !== 'mp4' && ext !== 'm3u8') {
         errors.push({
           index: 'N/A',
           song: 'N/A',
           artist: 'N/A',
-          error: `Filename '${file}' is not allowed. New files must follow the numerical series format (e.g. '<number>.mp4' or '<number>.m3u8'). Random naming is prohibited.`
+          error: `File '${file}' has an invalid extension. Only .mp4 and .m3u8 files are allowed.`
         });
-        return;
       }
 
-      newNumericalFiles.push({
-        path: file,
-        number: parseInt(match[1], 10),
-        ext: match[2].toLowerCase()
-      });
-    });
-
-    if (newNumericalFiles.length > 0) {
-      newNumericalFiles.sort((a, b) => a.number - b.number);
-      
-      newNumericalFiles.forEach((file, index) => {
-        const expectedNumber = maxBaseNumber + 1 + index;
-        if (file.number !== expectedNumber) {
+      const prAuthor = process.env.PR_AUTHOR;
+      if (prAuthor) {
+        const lowerAuthor = prAuthor.toLowerCase();
+        const lowerFilename = filename.toLowerCase();
+        if (!lowerFilename.startsWith(lowerAuthor + '-') && !lowerFilename.startsWith(lowerAuthor + '_')) {
           errors.push({
             index: 'N/A',
             song: 'N/A',
             artist: 'N/A',
-            error: `File '${file.path}' is out of sequence. The next expected filename in the series is '${expectedNumber}.${file.ext}' (highest committed is ${maxBaseNumber}). Gaps or random numbers are not allowed.`
+            error: `Filename '${filename}' must start with the PR author's username followed by a hyphen or underscore (e.g. '${lowerAuthor}-<filename>.<ext>') to verify ownership.`
           });
         }
-      });
-    }
+      }
+    });
   }
 
   let reportContent = '';
@@ -501,7 +481,7 @@ function validate() {
     const autoMerge = !shouldDisableAutoMerge;
     
     if (shouldDisableAutoMerge) {
-      reportContent = `### ✅ Validation Passed (Manual Review Required)\n\nAll conditions met (file sizes <= 5MB, correct naming series, no internal duplicates).\n\n⚠️ **Auto-merge is disabled** for manual review:\n`;
+      reportContent = `### ✅ Validation Passed (Manual Review Required)\n\nAll conditions met (file sizes <= 5MB, correct ownership prefix, no internal duplicates).\n\n⚠️ **Auto-merge is disabled** for manual review:\n`;
       if (removalDetected) {
         reportContent += `- **Modification/Removal detected:** ${removalReason}\n`;
       }
@@ -510,7 +490,7 @@ function validate() {
       });
       reportContent += `\nA maintainer must manually review and merge this pull request.`;
     } else {
-      reportContent = `### ✅ Validation Passed!\n\nAll conditions met (file sizes <= 5MB, correct naming series, no duplicates). Auto-merging...`;
+      reportContent = `### ✅ Validation Passed!\n\nAll conditions met (file sizes <= 5MB, correct ownership prefix, no duplicates). Auto-merging...`;
     }
     
     fs.writeFileSync('validation_report.md', reportContent);
