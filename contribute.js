@@ -424,6 +424,14 @@ document.addEventListener('DOMContentLoaded', () => {
         row.className   = 'song-entry-row';
         row.dataset.id  = id;
         row.innerHTML = `
+            <div class="song-entry-search" style="margin-bottom: 1rem;">
+                <div class="existing-search-box">
+                    <i class="fas fa-search existing-search-icon"></i>
+                    <input type="text" class="song-api-search" placeholder="Search YT Music for song..." autocomplete="off">
+                    <i class="fas fa-circle-notch fa-spin search-loader" style="display: none; position: absolute; right: 1rem; color: var(--text-dim);"></i>
+                </div>
+                <div class="api-search-results existing-results-list" style="display: none; max-height: 250px; overflow-y: auto; margin-top: 0.5rem;"></div>
+            </div>
             <div class="song-entry-fields">
                 <input type="text"
                        class="song-entry-song"
@@ -453,6 +461,92 @@ document.addEventListener('DOMContentLoaded', () => {
             inp.addEventListener('input', () => {
                 updateSubmitButtonState();
             });
+        });
+
+        const searchInput = row.querySelector('.song-api-search');
+        const resultsContainer = row.querySelector('.api-search-results');
+        const loaderIcon = row.querySelector('.search-loader');
+        const songInput = row.querySelector('.song-entry-song');
+        const artistInput = row.querySelector('.song-entry-artist');
+        let searchTimeout = null;
+
+        searchInput.addEventListener('input', () => {
+            clearTimeout(searchTimeout);
+            const query = searchInput.value.trim();
+            if (!query) {
+                resultsContainer.style.display = 'none';
+                resultsContainer.innerHTML = '';
+                loaderIcon.style.display = 'none';
+                return;
+            }
+
+            loaderIcon.style.display = 'block';
+            searchTimeout = setTimeout(async () => {
+                try {
+                    const apiUrl = `https://pipedapi.kavin.rocks/search?q=${encodeURIComponent(query)}&filter=music_songs`;
+                    const res = await fetch(apiUrl);
+                    if (!res.ok) throw new Error('Network response was not ok');
+                    const data = await res.json();
+                    
+                    loaderIcon.style.display = 'none';
+                    const items = (data.items || []).slice(0, 10);
+                    
+                    if (items.length === 0) {
+                        resultsContainer.innerHTML = '<p class="existing-no-results">No songs found.</p>';
+                        resultsContainer.style.display = 'block';
+                        return;
+                    }
+
+                    resultsContainer.innerHTML = items.map((item, idx) => {
+                        const songName = item.title || item.name || '';
+                        const artistName = item.uploaderName || item.author || (item.artists && item.artists[0] ? item.artists[0].name : 'Unknown Artist');
+                        const thumbnail = item.thumbnail || '';
+                        
+                        return \`
+                            <button type="button" class="existing-result-item" data-song="\${escapeAttr(songName)}" data-artist="\${escapeAttr(artistName)}">
+                                \${thumbnail ? \`<img src="\${escapeAttr(thumbnail)}" alt="cover" style="width: 40px; height: 40px; border-radius: 4px; margin-right: 1rem; object-fit: cover;">\` : ''}
+                                <span class="existing-result-label" style="text-align: left;">
+                                    <span class="existing-result-song">\${escapeHtml(songName)}</span>
+                                    <span class="existing-result-artist">\${escapeHtml(artistName)}</span>
+                                </span>
+                            </button>
+                        \`;
+                    }).join('');
+                    resultsContainer.style.display = 'block';
+
+                    resultsContainer.querySelectorAll('.existing-result-item').forEach(btn => {
+                        btn.addEventListener('click', () => {
+                            songInput.value = btn.dataset.song;
+                            artistInput.value = btn.dataset.artist;
+                            
+                            searchInput.value = '';
+                            resultsContainer.style.display = 'none';
+                            resultsContainer.innerHTML = '';
+                            
+                            songInput.style.borderColor = 'var(--accent-primary)';
+                            artistInput.style.borderColor = 'var(--accent-primary)';
+                            setTimeout(() => {
+                                songInput.style.borderColor = '';
+                                artistInput.style.borderColor = '';
+                            }, 800);
+                            
+                            updateSubmitButtonState();
+                        });
+                    });
+
+                } catch (error) {
+                    console.error('Error fetching YT Music data:', error);
+                    loaderIcon.style.display = 'none';
+                    resultsContainer.innerHTML = '<p class="existing-no-results" style="color: #ef4444;">Failed to fetch results. Please try again or enter manually.</p>';
+                    resultsContainer.style.display = 'block';
+                }
+            }, 500);
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!row.contains(e.target)) {
+                resultsContainer.style.display = 'none';
+            }
         });
 
         songEntriesList.appendChild(row);
