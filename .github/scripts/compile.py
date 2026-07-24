@@ -19,8 +19,10 @@ def compile_submissions():
         try:
             with open(filename, "r", encoding="utf-8") as f:
                 entries = json.load(f)
-                if isinstance(entries, list):
-                    new_entries.extend(entries)
+            if isinstance(entries, list):
+                new_entries.extend(entries)
+            elif isinstance(entries, dict):
+                new_entries.append(entries)
             # Delete file after reading
             os.remove(filename)
             print(f"Processed and deleted: {filename}")

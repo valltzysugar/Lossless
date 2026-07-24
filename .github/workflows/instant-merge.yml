@@ -1,0 +1,53 @@
+name: Instant Merge
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+  workflow_dispatch:
+
+concurrency:
+  group: merge-queue
+  cancel-in-progress: false
+
+permissions:
+  pull-requests: write
+  contents: write
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    steps:
+      - name: Validate and Merge PR
+        env:
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          if [ -z "$PR_URL" ]; then
+            echo "Manual trigger: skipping PR merge step."
+            exit 0
+          fi
+          
+          echo "Validating PR files for $PR_URL..."
+          FILES=$(gh pr view "$PR_URL" --json files -q '.files[].path')
+          VALID=true
+          
+          for FILE in $FILES; do
+            if [[ "$FILE" != submissions/* && "$FILE" != Music/* ]]; then
+              echo "Invalid file found: $FILE"
+              VALID=false
+              break
+            fi
+          done
+          
+          if [ "$VALID" = true ]; then
+            echo "Approving PR..."
+            gh pr review --approve "$PR_URL" || true
+            echo "Merging PR instantly..."
+            gh pr merge "$PR_URL" --squash -d || { echo "Failed to merge PR"; exit 1; }
+          else
+            echo "Closing invalid PR..."
+            gh pr comment "$PR_URL" -b "❌ PR contains unauthorized files and was skipped."
+            gh pr close "$PR_URL"
+            exit 1
+          fi
